@@ -22,6 +22,6 @@ jobs:
 
       - name: Test
         run: |
-          wget https://qoiformat.org/qoi_test_images.zip 
+          wget -q https://qoiformat.org/qoi_test_images.zip 
           unzip qoi_test_images.zip
           go test -v ./...
