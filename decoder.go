@@ -2,7 +2,6 @@ package go_qoi
 
 import (
 	"bufio"
-	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
@@ -23,16 +22,6 @@ type qoiHeader struct {
 	channels   uint8
 	colorspace uint8
 }
-
-const (
-	QOI_OP_INDEX = 0x00
-	QOI_OP_DIFF  = 0x40
-	QOI_OP_LUMA  = 0x80
-	QOI_OP_RUN   = 0xC0
-	QOI_OP_RGB   = 0xFE
-	QOI_OP_RGBA  = 0xFF
-	QOI_OP_MASK2 = 0xC0
-)
 
 func Decode(r io.Reader) (image.Image, error) {
 	reader := bufio.NewReader(r)
@@ -66,7 +55,7 @@ func parseHeader(reader *bufio.Reader) (*qoiHeader, error) {
 	if err != nil {
 		return nil, err
 	}
-	if string(magic) != "qoif" {
+	if string(magic) != QOI_MAGIC {
 		return nil, fmt.Errorf("File is not a qoi image")
 	}
 
@@ -206,26 +195,4 @@ func (d *decoder) decode() error {
 	}
 
 	return nil
-}
-
-func indexPositionHash(px color.NRGBA) uint8 {
-	return (px.R*3 + px.G*5 + px.B*7 + px.A*11) % 64
-}
-
-func readUint32(reader *bufio.Reader) (uint32, error) {
-	bytes := make([]byte, 4)
-	_, err := reader.Read(bytes)
-	if err != nil {
-		return 0, err
-	}
-	value := binary.BigEndian.Uint32(bytes)
-	return value, nil
-}
-
-func readUint8(reader *bufio.Reader) (uint8, error) {
-	b, err := reader.ReadByte()
-	if err != nil {
-		return 0, err
-	}
-	return uint8(b), nil
 }
