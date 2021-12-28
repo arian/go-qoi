@@ -72,7 +72,7 @@ func parseHeader(reader *bufio.Reader) (*qoiHeader, error) {
 	}
 
 	// channels
-	channels, err := readUint8(reader)
+	channels, err := reader.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func parseHeader(reader *bufio.Reader) (*qoiHeader, error) {
 	}
 
 	// colorspace
-	colorspace, err := readUint8(reader)
+	colorspace, err := reader.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -123,17 +123,17 @@ func (d *decoder) decode() error {
 			if b1 == QOI_OP_RGB {
 				// QOI_OP_RGB
 
-				r, err := readUint8(reader)
+				r, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
 				px.R = r
-				g, err := readUint8(reader)
+				g, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
 				px.G = g
-				b, err := readUint8(reader)
+				b, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
@@ -141,22 +141,22 @@ func (d *decoder) decode() error {
 
 			} else if b1 == QOI_OP_RGBA {
 				// QOI_OP_RGBA
-				r, err := readUint8(reader)
+				r, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
 				px.R = r
-				g, err := readUint8(reader)
+				g, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
 				px.G = g
-				b, err := readUint8(reader)
+				b, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
 				px.B = b
-				a, err := readUint8(reader)
+				a, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}
@@ -171,7 +171,7 @@ func (d *decoder) decode() error {
 				px.B = px.B + ((b1 >> 0) & 0b11) - 2
 
 			} else if (b1 & QOI_OP_MASK2) == QOI_OP_LUMA {
-				b2, err := readUint8(reader)
+				b2, err := reader.ReadByte()
 				if err != nil {
 					return err
 				}

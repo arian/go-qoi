@@ -11,17 +11,19 @@ import (
 )
 
 const (
-	QOI_OP_INDEX = 0x00
-	QOI_OP_DIFF  = 0x40
-	QOI_OP_LUMA  = 0x80
-	QOI_OP_RUN   = 0xC0
-	QOI_OP_RGB   = 0xFE
-	QOI_OP_RGBA  = 0xFF
-	QOI_OP_MASK2 = 0xC0
-	QOI_MAGIC    = "qoif"
+	QOI_OP_INDEX         = 0x00
+	QOI_OP_DIFF          = 0x40
+	QOI_OP_LUMA          = 0x80
+	QOI_OP_RUN           = 0xC0
+	QOI_OP_RGB           = 0xFE
+	QOI_OP_RGBA          = 0xFF
+	QOI_OP_MASK2         = 0xC0
+	QOI_MAGIC            = "qoif"
+	QOI_END_PADDING_SIZE = 8
+	QOI_HEADER_SIZE      = 14
 )
 
-var QOI_PADDING = [8]byte{0, 0, 0, 0, 0, 0, 0, 1}
+var QOI_END_PADDING = [8]byte{0, 0, 0, 0, 0, 0, 0, 1}
 
 func readUint32(reader *bufio.Reader) (uint32, error) {
 	bytes := make([]byte, 4)
@@ -33,26 +35,10 @@ func readUint32(reader *bufio.Reader) (uint32, error) {
 	return value, nil
 }
 
-func readUint8(reader *bufio.Reader) (uint8, error) {
-	b, err := reader.ReadByte()
-	if err != nil {
-		return 0, err
-	}
-	return uint8(b), nil
-}
-
 func writeUint32(writer io.Writer, value uint32) error {
 	bytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(bytes, value)
 	_, err := writer.Write(bytes)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func writeUint8(writer io.Writer, value uint8) error {
-	_, err := writer.Write([]byte{value})
 	if err != nil {
 		return err
 	}
@@ -71,6 +57,15 @@ func colorEquals(c, o color.Color) bool {
 
 func indexPositionHash(px color.NRGBA) uint8 {
 	return (px.R*3 + px.G*5 + px.B*7 + px.A*11) % 64
+}
+
+// Calculate the maximum (worst case) number of bytes necessary to convert the image.
+func MaxQoiSize(img image.Image) int {
+	channels := 4
+	b := img.Bounds().Max
+	return b.X*b.Y*(channels+1) +
+		QOI_HEADER_SIZE +
+		QOI_END_PADDING_SIZE
 }
 
 func ReadPngFile(filename string) (image.Image, error) {

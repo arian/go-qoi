@@ -57,7 +57,7 @@ func TestOnePxImg(t *testing.T) {
 	assert.Equal(t, byte(0), bs[18])
 	assert.Equal(t, byte(0), bs[19])
 	// padding
-	assert.Equal(t, QOI_PADDING[:], bs[19:])
+	assert.Equal(t, QOI_END_PADDING[:], bs[19:])
 }
 
 func TestEncodeDiff(t *testing.T) {
@@ -81,7 +81,7 @@ func TestEncodeDiff(t *testing.T) {
 	)
 
 	// padding
-	assert.Equal(t, QOI_PADDING[:], bs[20:])
+	assert.Equal(t, QOI_END_PADDING[:], bs[20:])
 }
 
 func TestEncodeLuma(t *testing.T) {
@@ -115,7 +115,7 @@ func TestEncodeLuma(t *testing.T) {
 	)
 
 	// padding
-	assert.Equal(t, QOI_PADDING[:], bs[21:])
+	assert.Equal(t, QOI_END_PADDING[:], bs[21:])
 }
 
 func TestEncoderBytes(t *testing.T) {
@@ -129,13 +129,10 @@ func TestEncoderBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var b bytes.Buffer
-	var w io.Writer
-	w = &b
+	b := new(bytes.Buffer)
+	err = Encode(b, img)
 
-	err = Encode(w, img)
 	assert.Nil(t, err)
-
 	assert.Equal(t, bs, b.Bytes())
 }
 

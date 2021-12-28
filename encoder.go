@@ -25,11 +25,12 @@ func Encode(w io.Writer, img image.Image) error {
 		return err
 	}
 
-	err = writeUint8(w, 4)
+	_, err = w.Write([]byte{4})
 	if err != nil {
 		return err
 	}
-	err = writeUint8(w, 0)
+
+	_, err = w.Write([]byte{0})
 	if err != nil {
 		return err
 	}
@@ -68,7 +69,7 @@ func Encode(w io.Writer, img image.Image) error {
 			index_pos := indexPositionHash(px)
 
 			if seen_pixels[index_pos] == px {
-				_, err = w.Write([]byte{uint8(QOI_OP_INDEX | index_pos)})
+				_, err = w.Write([]byte{QOI_OP_INDEX | index_pos})
 				if err != nil {
 					return err
 				}
@@ -83,13 +84,9 @@ func Encode(w io.Writer, img image.Image) error {
 					vg_r := vr - vg
 					vg_b := vb - vg
 
-					if vr > -3 && vr < 2 &&
-						vg > -3 && vg < 2 &&
-						vb > -3 && vb < 2 {
-
-						d := uint8(QOI_OP_DIFF | uint8((vr+2)<<4|(vg+2)<<2|(vb+2)))
+					if vr >= -2 && vr < 2 && vg >= -2 && vg < 2 && vb >= -2 && vb < 2 {
 						_, err = w.Write([]byte{
-							d,
+							uint8(QOI_OP_DIFF | (vr+2)<<4 | (vg+2)<<2 | (vb + 2)),
 						})
 						if err != nil {
 							return err
@@ -108,19 +105,13 @@ func Encode(w io.Writer, img image.Image) error {
 						}
 
 					} else {
-						_, err := w.Write([]byte{
-							byte(QOI_OP_RGB),
-							px.R,
-							px.G,
-							px.B,
-						})
+						_, err := w.Write([]byte{byte(QOI_OP_RGB), px.R, px.G, px.B})
 						if err != nil {
 							return err
 						}
 					}
 
 				} else {
-
 					_, err := w.Write([]byte{QOI_OP_RGBA, px.R, px.G, px.B, px.A})
 					if err != nil {
 						return err
@@ -132,7 +123,7 @@ func Encode(w io.Writer, img image.Image) error {
 		prev_px = px
 	}
 
-	w.Write(QOI_PADDING[:])
+	w.Write(QOI_END_PADDING[:])
 
 	return nil
 }
