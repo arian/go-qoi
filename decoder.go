@@ -9,10 +9,13 @@ import (
 )
 
 type decoder struct {
-	reader bufio.Reader
-	header qoiHeader
-	img    image.Image
-	rgba   *image.NRGBA
+	reader      bufio.Reader
+	header      qoiHeader
+	img         image.Image
+	rgba        *image.NRGBA
+	px          color.NRGBA
+	run         uint8
+	seen_pixels [64]color.NRGBA
 }
 
 type qoiHeader struct {
@@ -38,6 +41,7 @@ func Decode(r io.Reader) (image.Image, error) {
 		header: *header,
 		img:    img,
 		rgba:   img,
+		px:     color.NRGBA{R: 0, G: 0, B: 0, A: 255},
 	}
 
 	err = d.decode()
@@ -99,99 +103,124 @@ func parseHeader(reader *bufio.Reader) (*qoiHeader, error) {
 }
 
 func (d *decoder) decode() error {
-	header := d.header
-	reader := &d.reader
-
-	w := int(header.width)
-	h := int(header.height)
+	w := int(d.header.width)
+	h := int(d.header.height)
 	l := w * h
 
-	seen_pixels := make([]color.NRGBA, 64)
-	px := color.NRGBA{R: 0, G: 0, B: 0, A: 255}
-	run := 0
-
 	for i := 0; i < l; i++ {
-		if run > 0 {
-			run--
-		} else {
-
-			b1, err := reader.ReadByte()
-			if err != nil {
-				return err
-			}
-
-			if b1 == QOI_OP_RGB {
-				// QOI_OP_RGB
-
-				r, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.R = r
-				g, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.G = g
-				b, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.B = b
-
-			} else if b1 == QOI_OP_RGBA {
-				// QOI_OP_RGBA
-				r, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.R = r
-				g, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.G = g
-				b, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.B = b
-				a, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				px.A = a
-
-			} else if (b1 & QOI_OP_MASK2) == QOI_OP_INDEX {
-				// QOI_OP_INDEX
-				px = seen_pixels[b1]
-			} else if (b1 & QOI_OP_MASK2) == QOI_OP_DIFF {
-				px.R = px.R + ((b1 >> 4) & 0b11) - 2
-				px.G = px.G + ((b1 >> 2) & 0b11) - 2
-				px.B = px.B + ((b1 >> 0) & 0b11) - 2
-
-			} else if (b1 & QOI_OP_MASK2) == QOI_OP_LUMA {
-				b2, err := reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				vg := (b1 & 0x3f) - 32
-				px.R = px.R + vg - 8 + ((b2 >> 4) & 0x0f)
-				px.G = px.G + vg
-				px.B = px.B + vg - 8 + (b2 & 0x0f)
-
-			} else if (b1 & QOI_OP_MASK2) == QOI_OP_RUN {
-				run = int(b1 & 0b00111111)
-			}
+		err := d.runAtPix(i, i%w, i/w)
+		if err != nil {
+			return err
 		}
+	}
 
-		p := px
-		hash := indexPositionHash(p)
-		seen_pixels[hash] = p
+	return nil
+}
 
-		y := i / w
-		x := i % w
-		d.rgba.Set(x, y, p)
+// copy the px to the image and store it in the seen_pixels cache
+func (d *decoder) copyPx(x, y int) {
+	p := d.px
+	hash := indexPositionHash(p)
+	d.seen_pixels[hash] = p
+	d.rgba.Set(x, y, p)
+}
+
+// only set the px to the image, when we already know for sure the px is in the seen_pixels cache
+func (d *decoder) setPx(x, y int) {
+	d.rgba.Set(x, y, d.px)
+}
+
+func (d *decoder) runAtPix(i, x, y int) error {
+	if d.run > 0 {
+		d.run--
+		d.setPx(x, y)
+		return nil
+	}
+
+	b1, err := d.reader.ReadByte()
+	if err != nil {
+		return err
+	}
+
+	if b1 == QOI_OP_RGB {
+		r, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.R = r
+		g, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.G = g
+		b, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.B = b
+
+		d.copyPx(x, y)
+		return nil
+	}
+
+	if b1 == QOI_OP_RGBA {
+		r, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.R = r
+		g, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.G = g
+		b, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.B = b
+		a, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		d.px.A = a
+
+		d.copyPx(x, y)
+		return nil
+	}
+
+	if (b1 & QOI_OP_MASK2) == QOI_OP_INDEX {
+		d.px = d.seen_pixels[b1]
+		d.setPx(x, y)
+		return nil
+	}
+
+	if (b1 & QOI_OP_MASK2) == QOI_OP_DIFF {
+		d.px.R = d.px.R + ((b1 >> 4) & 0b11) - 2
+		d.px.G = d.px.G + ((b1 >> 2) & 0b11) - 2
+		d.px.B = d.px.B + ((b1 >> 0) & 0b11) - 2
+		d.copyPx(x, y)
+		return nil
+	}
+
+	if (b1 & QOI_OP_MASK2) == QOI_OP_LUMA {
+		b2, err := d.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		vg := (b1 & 0x3f) - 32
+		d.px.R = d.px.R + vg - 8 + ((b2 >> 4) & 0x0f)
+		d.px.G = d.px.G + vg
+		d.px.B = d.px.B + vg - 8 + (b2 & 0x0f)
+
+		d.copyPx(x, y)
+		return nil
+	}
+
+	if (b1 & QOI_OP_MASK2) == QOI_OP_RUN {
+		d.run = uint8(b1 & 0b00111111)
+		d.setPx(x, y)
+		return nil
 	}
 
 	return nil

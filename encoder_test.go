@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"image"
 	"image/color"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -91,15 +90,11 @@ func TestEncodeLuma(t *testing.T) {
 	img.Set(1, 0, color.NRGBA{R: 102, G: 0})
 
 	var b bytes.Buffer
-	var w io.Writer
-	w = &b
 
-	err := Encode(w, img)
+	err := Encode(&b, img)
 	assert.Nil(t, err)
-
 	bs := b.Bytes()
 
-	// header
 	// pixels
 	assert.Equal(t,
 		[]byte{QOI_OP_RGBA, 100, 2, 0, 0},
@@ -116,6 +111,69 @@ func TestEncodeLuma(t *testing.T) {
 
 	// padding
 	assert.Equal(t, QOI_END_PADDING[:], bs[21:])
+}
+
+func TestEncodeRun(t *testing.T) {
+
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 1))
+	img.Set(0, 0, color.NRGBA{R: 100})
+	img.Set(1, 0, color.NRGBA{R: 100})
+	img.Set(2, 0, color.NRGBA{R: 100})
+	img.Set(3, 0, color.NRGBA{R: 0, G: 100})
+
+	var b bytes.Buffer
+
+	err := Encode(&b, img)
+	assert.Nil(t, err)
+	bs := b.Bytes()
+
+	// pixels
+	assert.Equal(t,
+		[]byte{QOI_OP_RGBA, 100, 0, 0, 0},
+		bs[14:19],
+	)
+
+	assert.Equal(t,
+		[]byte{QOI_OP_RUN | 1},
+		bs[19:20],
+	)
+
+	assert.Equal(t,
+		[]byte{QOI_OP_RGB, 0, 100, 0},
+		bs[20:24],
+	)
+
+	// padding
+	assert.Equal(t, QOI_END_PADDING[:], bs[24:])
+}
+
+func TestEncodeRunAtTheEnd(t *testing.T) {
+
+	img := image.NewNRGBA(image.Rect(0, 0, 4, 1))
+	img.Set(0, 0, color.NRGBA{R: 100})
+	img.Set(1, 0, color.NRGBA{R: 100})
+	img.Set(2, 0, color.NRGBA{R: 100})
+	img.Set(3, 0, color.NRGBA{R: 100})
+
+	var b bytes.Buffer
+
+	err := Encode(&b, img)
+	assert.Nil(t, err)
+	bs := b.Bytes()
+
+	// pixels
+	assert.Equal(t,
+		[]byte{QOI_OP_RGBA, 100, 0, 0, 0},
+		bs[14:19],
+	)
+
+	assert.Equal(t,
+		[]byte{QOI_OP_RUN | 2},
+		bs[19:20],
+	)
+
+	// padding
+	assert.Equal(t, QOI_END_PADDING[:], bs[20:])
 }
 
 func TestEncoderBytes(t *testing.T) {
